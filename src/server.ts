@@ -2,19 +2,25 @@ import { config } from './config';
 import { logger } from './utils/logger';
 import { connectDB } from './db';
 import { connectRedis, redis } from './cache/redis';
-import { connectRabbitMQ, closeRabbitMQ } from './queue/connection';
 import { createBootstrappedApp } from './bootstrap';
 
+// Phase 6: re-add these when RabbitMQ / thumbnail worker is enabled
+// import { connectRabbitMQ, closeRabbitMQ } from './queue/connection';
+
 async function bootstrap() {
-  // 1. Connect to all infrastructure
+  // 1. Connect to infrastructure
   await connectDB();
   await connectRedis();
-  await connectRabbitMQ();
+
+  // Phase 6: await connectRabbitMQ();
 
   // 2. Wire dependencies and create Express app
   const app = createBootstrappedApp();
 
-  // 3. Start HTTP server
+  // 3. Trust Nginx reverse proxy — reads real client IP from X-Forwarded-For
+  app.set('trust proxy', 1);
+
+  // 4. Start HTTP server
   const server = app.listen(config.PORT, () => {
     logger.info(`Server running on port ${config.PORT} [${config.NODE_ENV}]`);
   });
@@ -25,7 +31,7 @@ async function bootstrap() {
 
     server.close(async () => {
       try {
-        await closeRabbitMQ();
+        // Phase 6: await closeRabbitMQ();
         await redis.quit();
         logger.info('All connections closed. Goodbye 👋');
         process.exit(0);

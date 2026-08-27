@@ -10,7 +10,7 @@ import { logger } from './utils/logger';
 import { errorHandler } from './middleware/error.middleware';
 import { db } from './db';
 import { redis } from './cache/redis';
-import { isRabbitMQHealthy } from './queue/connection';
+// Phase 6: import { isRabbitMQHealthy } from './queue/connection';
 
 // Phase 2 routes
 import { createAuthRoutes } from './modules/auth/auth.routes';
@@ -73,9 +73,9 @@ export function createApp(controllers: Partial<AppControllers> = {}) {
     ]);
 
     const services = {
-      database: dbCheck.status === 'fulfilled' ? 'ok' : 'error',
+      database: dbCheck.status   === 'fulfilled' ? 'ok' : 'error',
       redis:    redisCheck.status === 'fulfilled' ? 'ok' : 'error',
-      queue:    isRabbitMQHealthy() ? 'ok' : 'error',
+      // Phase 6: queue: isRabbitMQHealthy() ? 'ok' : 'error',
     };
 
     const allHealthy = Object.values(services).every((s) => s === 'ok');

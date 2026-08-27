@@ -1,76 +1,94 @@
 services:
+  # ── Caddy — reverse proxy + automatic HTTPS ───────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'           # HTTP (redirected to HTTPS by Caddy automatically)
+      - '443:443'         # HTTPS
+      - '443:443/udp'     # HTTP/3 (QUIC)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro   # your 3-line config
+      - caddy_data:/data                       # SSL cert storage (persisted)
+      - caddy_config:/config                   # Caddy state
+    depends_on:
+      - api
+
+  # ── API ───────────────────────────────────────────────────────────────────
   api:
     build:
       context: .
       target: production
     command: node dist/server.js
-    ports:
-      - '3000:3000'
+    # No ports: exposed — Caddy reaches the api container by service name
+    # on the internal Docker network. Nothing is exposed to the host.
+    expose:
+      - '3000'
     env_file: .env
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     restart: unless-stopped
 
-  worker:
-    build:
-      context: .
-      target: production
-    command: node dist/worker.js
-    env_file: .env
-    depends_on:
-      db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    restart: unless-stopped
+  # ── Phase 6: uncomment to re-enable thumbnail worker ──────────────────────
+  # worker:
+  #   build:
+  #     context: .
+  #     target: production
+  #   command: node dist/worker.js
+  #   env_file: .env
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   restart: unless-stopped
 
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: gdrive_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - '5432:5432'
+      POSTGRES_DB:       gdrive_db
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test:     ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 5s
-      timeout: 5s
-      retries: 5
+      timeout:  5s
+      retries:  5
+    restart: unless-stopped
 
+  # ── Redis ─────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    ports:
-      - '6379:6379'
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test:     ['CMD', 'redis-cli', 'ping']
       interval: 5s
-      timeout: 3s
-      retries: 5
+      timeout:  3s
+      retries:  5
+    restart: unless-stopped
 
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    ports:
-      - '5672:5672'
-      - '15672:15672' # Management UI: guest/guest
-    volumes:
-      - rabbitmqdata:/var/lib/rabbitmq
-    healthcheck:
-      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # ── Phase 6: uncomment to re-enable RabbitMQ ──────────────────────────────
+  # rabbitmq:
+  #   image: rabbitmq:3-management-alpine
+  #   volumes:
+  #     - rabbitmqdata:/var/lib/rabbitmq
+  #   healthcheck:
+  #     test:     ['CMD', 'rabbitmq-diagnostics', 'ping']
+  #     interval: 10s
+  #     timeout:  5s
+  #     retries:  5
+  #   restart: unless-stopped
 
 volumes:
   pgdata:
   redisdata:
-  rabbitmqdata:
+  caddy_data:     # stores SSL certificates — do NOT delete this volume
+  caddy_config:
+  # rabbitmqdata: # Phase 6: uncomment
