@@ -20,6 +20,11 @@ import { UploadRepository } from './modules/uploads/uploads.repository';
 import { UploadService }    from './modules/uploads/uploads.service';
 import { UploadController } from './modules/uploads/uploads.controller';
 
+// Phase 5 — Files
+import { FileRepository } from './modules/files/files.repository';
+import { FileService }    from './modules/files/files.service';
+import { FileController } from './modules/files/files.controller';
+
 /**
  * Composition root — manually wires all dependencies and mounts routes.
  *
@@ -51,9 +56,9 @@ export function createBootstrappedApp() {
   const uploadController = new UploadController({ uploadService, logger });
 
   // ── Phase 5: Files ────────────────────────────────────────────────────────
-  // const fileRepository = new FileRepository(db);
-  // const fileService    = new FileService({ fileRepository, eventBus, config, logger });
-  // const fileController = new FileController({ fileService, logger });
+  const fileRepository = new FileRepository(db);
+  const fileService    = new FileService({ fileRepository, folderRepository, config, logger });
+  const fileController = new FileController({ fileService, logger });
 
   // ── Phase 7: Shares & Public Links ────────────────────────────────────────
   // const shareRepository      = new ShareRepository(db);
@@ -67,7 +72,7 @@ export function createBootstrappedApp() {
     authController,
     folderController,
     uploadController,
-    // fileController,
+    fileController,
     // shareController,
     // publicLinkController,
   });

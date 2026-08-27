@@ -24,6 +24,10 @@ import type { FolderController } from './modules/folders/folders.controller';
 import { createUploadRoutes } from './modules/uploads/uploads.routes';
 import type { UploadController } from './modules/uploads/uploads.controller';
 
+// Phase 5 routes
+import { createFileRoutes } from './modules/files/files.routes';
+import type { FileController } from './modules/files/files.controller';
+
 /**
  * Controllers are injected here by bootstrap.ts.
  * The interface grows as phases are implemented.
@@ -36,7 +40,7 @@ export interface AppControllers {
   // Phase 4
   uploadController:      UploadController;
   // Phase 5
-  // fileController:       FileController;
+  fileController:        FileController;
   // Phase 7
   // shareController:      ShareController;
   // publicLinkController: PublicLinkController;
@@ -93,7 +97,9 @@ export function createApp(controllers: Partial<AppControllers> = {}) {
   if (controllers.uploadController) {
     app.use('/uploads', createUploadRoutes(controllers.uploadController));
   }
-  // Phase 5: if (controllers.fileController)   app.use('/files',   createFileRoutes(controllers.fileController));
+  if (controllers.fileController) {
+    app.use('/files', createFileRoutes(controllers.fileController));
+  }
   // Phase 7: if (controllers.shareController)  app.use('/shares',  createShareRoutes(controllers.shareController));
   //          if (controllers.publicLinkController) app.use('/public', createPublicLinkRoutes(controllers.publicLinkController));
 
