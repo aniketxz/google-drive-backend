@@ -1,0 +1,3 @@
+google-drive-api.aniketxz.dev {
+    reverse_proxy api:3000
+}
