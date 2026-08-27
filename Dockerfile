@@ -30,6 +30,9 @@ RUN npm ci --omit=dev
 # Copy compiled output from builder stage
 COPY --from=builder /app/dist/ ./dist/
 
+# Copy migrations folder for running database migrations in production
+COPY --from=builder /app/src/db/migrations/ ./src/db/migrations/
+
 ENV NODE_ENV=production
 
 USER appuser
