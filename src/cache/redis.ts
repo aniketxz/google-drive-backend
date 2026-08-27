@@ -37,3 +37,5 @@ export const sessionStore = {
   del: (sessionId: string): Promise<number> =>
     redis.del(`${SESSION_PREFIX}${sessionId}`),
 };
+
+export type SessionStore = typeof sessionStore;

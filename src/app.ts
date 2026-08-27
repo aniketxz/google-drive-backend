@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import passport from 'passport';
 import morgan from 'morgan';
 import { sql } from 'drizzle-orm';
 import { config } from './config';
@@ -11,13 +12,17 @@ import { db } from './db';
 import { redis } from './cache/redis';
 import { isRabbitMQHealthy } from './queue/connection';
 
+// Phase 2 routes
+import { createAuthRoutes } from './modules/auth/auth.routes';
+import type { AuthController } from './modules/auth/auth.controller';
+
 /**
  * Controllers are injected here by bootstrap.ts.
  * The interface grows as phases are implemented.
  */
 export interface AppControllers {
   // Phase 2
-  // authController:       AuthController;
+  authController:        AuthController;
   // Phase 3
   // folderController:     FolderController;
   // Phase 4
@@ -45,6 +50,9 @@ export function createApp(controllers: Partial<AppControllers> = {}) {
     }),
   );
 
+  // ── Passport — stateless mode (no session middleware needed) ──────────────
+  app.use(passport.initialize());
+
   // ── Health ────────────────────────────────────────────────────────────────
   app.get('/health', async (_req: Request, res: Response) => {
     const [dbCheck, redisCheck] = await Promise.allSettled([
@@ -68,12 +76,14 @@ export function createApp(controllers: Partial<AppControllers> = {}) {
   });
 
   // ── Module routes (mounted by bootstrap.ts as phases are implemented) ─────
-  // Phase 2: app.use('/auth',    createAuthRoutes(controllers.authController!));
-  // Phase 3: app.use('/folders', createFolderRoutes(controllers.folderController!));
-  // Phase 4: app.use('/uploads', createUploadRoutes(controllers.uploadController!));
-  // Phase 5: app.use('/files',   createFileRoutes(controllers.fileController!));
-  // Phase 7: app.use('/shares',  createShareRoutes(controllers.shareController!));
-  //          app.use('/public',  createPublicLinkRoutes(controllers.publicLinkController!));
+  if (controllers.authController) {
+    app.use('/auth', createAuthRoutes(controllers.authController));
+  }
+  // Phase 3: if (controllers.folderController) app.use('/folders', createFolderRoutes(controllers.folderController));
+  // Phase 4: if (controllers.uploadController) app.use('/uploads', createUploadRoutes(controllers.uploadController));
+  // Phase 5: if (controllers.fileController)   app.use('/files',   createFileRoutes(controllers.fileController));
+  // Phase 7: if (controllers.shareController)  app.use('/shares',  createShareRoutes(controllers.shareController));
+  //          if (controllers.publicLinkController) app.use('/public', createPublicLinkRoutes(controllers.publicLinkController));
 
   // ── Global error handler — MUST be last ──────────────────────────────────
   app.use(errorHandler);

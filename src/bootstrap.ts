@@ -3,6 +3,12 @@ import { db } from './db';
 import { redis, sessionStore } from './cache/redis';
 import { eventBus } from './events';
 import { logger } from './utils/logger';
+import { config } from './config';
+
+// Phase 2 — Auth
+import { AuthRepository } from './modules/auth/auth.repository';
+import { AuthService }    from './modules/auth/auth.service';
+import { AuthController } from './modules/auth/auth.controller';
 
 /**
  * Composition root — manually wires all dependencies and mounts routes.
@@ -17,9 +23,12 @@ import { logger } from './utils/logger';
  */
 export function createBootstrappedApp() {
   // ── Phase 2: Auth ─────────────────────────────────────────────────────────
-  // const authRepository = new AuthRepository(db);
-  // const authService    = new AuthService({ authRepository, redis, sessionStore, config, logger });
-  // const authController = new AuthController({ authService, logger });
+  const authRepository = new AuthRepository(db);
+  const authService    = new AuthService({ authRepository, sessionStore, config, logger });
+  const authController = new AuthController({ authService, logger });
+
+  // Register Passport Google strategy (must run before app.use(passport.initialize()))
+  authService.registerPassportStrategy();
 
   // ── Phase 3: Folders ──────────────────────────────────────────────────────
   // const folderRepository = new FolderRepository(db);
@@ -45,7 +54,7 @@ export function createBootstrappedApp() {
   // const publicLinkController = new PublicLinkController({ publicLinkService, logger });
 
   const app = createApp({
-    // authController,
+    authController,
     // folderController,
     // uploadController,
     // fileController,
