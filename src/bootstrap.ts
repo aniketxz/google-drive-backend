@@ -10,6 +10,11 @@ import { AuthRepository } from './modules/auth/auth.repository';
 import { AuthService }    from './modules/auth/auth.service';
 import { AuthController } from './modules/auth/auth.controller';
 
+// Phase 3 — Folders
+import { FolderRepository } from './modules/folders/folders.repository';
+import { FolderService }    from './modules/folders/folders.service';
+import { FolderController } from './modules/folders/folders.controller';
+
 /**
  * Composition root — manually wires all dependencies and mounts routes.
  *
@@ -31,9 +36,9 @@ export function createBootstrappedApp() {
   authService.registerPassportStrategy();
 
   // ── Phase 3: Folders ──────────────────────────────────────────────────────
-  // const folderRepository = new FolderRepository(db);
-  // const folderService    = new FolderService({ folderRepository, logger });
-  // const folderController = new FolderController({ folderService, logger });
+  const folderRepository = new FolderRepository(db);
+  const folderService    = new FolderService({ folderRepository, logger });
+  const folderController = new FolderController({ folderService, logger });
 
   // ── Phase 4: Uploads ──────────────────────────────────────────────────────
   // const uploadRepository = new UploadRepository(db);
@@ -55,7 +60,7 @@ export function createBootstrappedApp() {
 
   const app = createApp({
     authController,
-    // folderController,
+    folderController,
     // uploadController,
     // fileController,
     // shareController,

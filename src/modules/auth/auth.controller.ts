@@ -50,7 +50,7 @@ export class AuthController {
 
         this.logger.info({ userId: user.id }, 'User logged in via Google OAuth');
         // Redirect to frontend after successful login
-        res.redirect(`${process.env.CLIENT_URL ?? 'http://localhost:3000'}/dashboard`);
+        res.redirect(`${process.env.CLIENT_URL ?? 'http://localhost:5000'}/dashboard`);
       } catch (err) {
         next(err);
       }

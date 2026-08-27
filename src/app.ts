@@ -16,6 +16,10 @@ import { isRabbitMQHealthy } from './queue/connection';
 import { createAuthRoutes } from './modules/auth/auth.routes';
 import type { AuthController } from './modules/auth/auth.controller';
 
+// Phase 3 routes
+import { createFolderRoutes } from './modules/folders/folders.routes';
+import type { FolderController } from './modules/folders/folders.controller';
+
 /**
  * Controllers are injected here by bootstrap.ts.
  * The interface grows as phases are implemented.
@@ -24,7 +28,7 @@ export interface AppControllers {
   // Phase 2
   authController:        AuthController;
   // Phase 3
-  // folderController:     FolderController;
+  folderController:      FolderController;
   // Phase 4
   // uploadController:     UploadController;
   // Phase 5
@@ -79,7 +83,9 @@ export function createApp(controllers: Partial<AppControllers> = {}) {
   if (controllers.authController) {
     app.use('/auth', createAuthRoutes(controllers.authController));
   }
-  // Phase 3: if (controllers.folderController) app.use('/folders', createFolderRoutes(controllers.folderController));
+  if (controllers.folderController) {
+    app.use('/folders', createFolderRoutes(controllers.folderController));
+  }
   // Phase 4: if (controllers.uploadController) app.use('/uploads', createUploadRoutes(controllers.uploadController));
   // Phase 5: if (controllers.fileController)   app.use('/files',   createFileRoutes(controllers.fileController));
   // Phase 7: if (controllers.shareController)  app.use('/shares',  createShareRoutes(controllers.shareController));
