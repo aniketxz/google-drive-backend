@@ -40,7 +40,7 @@ export function createBootstrappedApp() {
   // ── Phase 2: Auth ─────────────────────────────────────────────────────────
   const authRepository = new AuthRepository(db);
   const authService    = new AuthService({ authRepository, sessionStore, config, logger });
-  const authController = new AuthController({ authService, logger });
+  const authController = new AuthController({ authService, config, logger });
 
   // Register Passport Google strategy (must run before app.use(passport.initialize()))
   authService.registerPassportStrategy();

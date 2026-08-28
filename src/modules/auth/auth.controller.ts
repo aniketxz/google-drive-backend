@@ -2,20 +2,24 @@ import { Request, Response, NextFunction } from 'express';
 import passport from 'passport';
 import type { Logger } from 'pino';
 import type { AuthService } from './auth.service';
+import type { Config } from '../../config';
 import { AppError } from '../../utils/AppError';
 import type { User } from '../../db/schema/users';
 
 interface AuthControllerDeps {
   authService: AuthService;
+  config:      Config;
   logger:      Logger;
 }
 
 export class AuthController {
   private readonly authService: AuthService;
+  private readonly config:      Config;
   private readonly logger:      Logger;
 
-  constructor({ authService, logger }: AuthControllerDeps) {
+  constructor({ authService, config, logger }: AuthControllerDeps) {
     this.authService = authService;
+    this.config      = config;
     this.logger      = logger;
   }
 
@@ -43,14 +47,14 @@ export class AuthController {
 
         res.cookie('gdrive_token', token, {
           httpOnly: true,
-          secure:   process.env.NODE_ENV === 'production',
+          secure:   this.config.NODE_ENV === 'production',
           sameSite: 'none',
           maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days in ms
         });
 
         this.logger.info({ userId: user.id }, 'User logged in via Google OAuth');
         // Redirect to frontend after successful login
-        res.redirect(`${process.env.CLIENT_URL ?? 'http://localhost:3000'}`);
+        res.redirect(this.config.CLIENT_URL);
       } catch (err) {
         next(err);
       }
