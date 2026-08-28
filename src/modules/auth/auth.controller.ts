@@ -44,13 +44,13 @@ export class AuthController {
         res.cookie('gdrive_token', token, {
           httpOnly: true,
           secure:   process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
+          sameSite: 'none',
           maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days in ms
         });
 
         this.logger.info({ userId: user.id }, 'User logged in via Google OAuth');
         // Redirect to frontend after successful login
-        res.redirect(`${process.env.CLIENT_URL ?? 'http://localhost:5000'}/dashboard`);
+        res.redirect(`${process.env.CLIENT_URL ?? 'http://localhost:3000'}`);
       } catch (err) {
         next(err);
       }
