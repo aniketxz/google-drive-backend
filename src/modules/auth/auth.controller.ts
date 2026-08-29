@@ -5,6 +5,7 @@ import type { AuthService } from './auth.service';
 import type { Config } from '../../config';
 import { AppError } from '../../utils/AppError';
 import type { User } from '../../db/schema/users';
+import { AUTH_COOKIE_NAME, AUTH_COOKIE_MAX_AGE_MS, ERROR_CODES } from '../../constants';
 
 interface AuthControllerDeps {
   authService: AuthService;
@@ -45,11 +46,11 @@ export class AuthController {
         const user = req.user as User;
         const token = await this.authService.createSession(user.id);
 
-        res.cookie('gdrive_token', token, {
+        res.cookie(AUTH_COOKIE_NAME, token, {
           httpOnly: true,
           secure:   this.config.NODE_ENV === 'production',
           sameSite: this.config.NODE_ENV === 'production' ? 'none' : 'lax',
-          maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days in ms
+          maxAge:   AUTH_COOKIE_MAX_AGE_MS,
         });
 
         this.logger.info({ userId: user.id }, 'User logged in via Google OAuth');
@@ -71,11 +72,11 @@ export class AuthController {
   /** Deletes the Redis session and clears the cookie. */
   logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (!req.sessionId) throw new AppError(401, 'Not authenticated', 'UNAUTHENTICATED');
+      if (!req.sessionId) throw new AppError(401, 'Not authenticated', ERROR_CODES.UNAUTHENTICATED);
 
       await this.authService.revokeSession(req.sessionId);
 
-      res.clearCookie('gdrive_token', { httpOnly: true, sameSite: 'lax' });
+      res.clearCookie(AUTH_COOKIE_NAME, { httpOnly: true, sameSite: 'lax' });
 
       this.logger.info({ userId: req.userId }, 'User logged out');
       res.json({ success: true, message: 'Logged out successfully' });
@@ -88,7 +89,7 @@ export class AuthController {
   /** Returns the currently authenticated user's profile. */
   me = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (!req.userId) throw new AppError(401, 'Not authenticated', 'UNAUTHENTICATED');
+      if (!req.userId) throw new AppError(401, 'Not authenticated', ERROR_CODES.UNAUTHENTICATED);
 
       const user = await this.authService.getUser(req.userId);
 

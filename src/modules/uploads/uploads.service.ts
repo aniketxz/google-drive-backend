@@ -16,6 +16,12 @@ import type { Upload } from '../../db/schema/uploads';
 import type { File } from '../../db/schema/files';
 import { AppError } from '../../utils/AppError';
 import { eventBus } from '../../events';
+import {
+  ERROR_CODES,
+  DOMAIN_EVENTS,
+  S3_UPLOAD_PREFIX,
+  S3_PART_PRESIGNED_URL_EXPIRES_SECONDS,
+} from '../../constants';
 
 interface UploadServiceDeps {
   uploadRepository: UploadRepository;
@@ -54,26 +60,26 @@ export class UploadService {
     // 1. Check user storage quota
     const userStorage = await this.uploadRepository.findUserStorage(userId);
     if (!userStorage) {
-      throw new AppError(404, 'User storage record not found', 'USER_NOT_FOUND');
+      throw new AppError(404, 'User storage record not found', ERROR_CODES.USER_NOT_FOUND);
     }
 
     const projectedUsage = userStorage.usedStorage + size;
     if (projectedUsage > userStorage.quota) {
-      throw new AppError(400, 'Insufficient storage quota to complete this upload', 'QUOTA_EXCEEDED');
+      throw new AppError(400, 'Insufficient storage quota to complete this upload', ERROR_CODES.QUOTA_EXCEEDED);
     }
 
     // 2. Validate folder ownership
     if (folderId) {
       const folderExists = await this.folderRepository.existsAndOwned(folderId, userId);
       if (!folderExists) {
-        throw new AppError(404, 'Destination folder not found', 'FOLDER_NOT_FOUND');
+        throw new AppError(404, 'Destination folder not found', ERROR_CODES.FOLDER_NOT_FOUND);
       }
     }
 
     // 3. Initiate S3 multipart upload
     const fileId = uuidv4();
     const sanitizedName = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const s3Key = `uploads/${userId}/${fileId}-${sanitizedName}`;
+    const s3Key = `${S3_UPLOAD_PREFIX}/${userId}/${fileId}-${sanitizedName}`;
 
     this.logger.debug({ userId, s3Key }, 'Initiating S3 Multipart Upload');
 
@@ -85,7 +91,7 @@ export class UploadService {
 
     const s3Response = await s3Client.send(command);
     if (!s3Response.UploadId) {
-      throw new AppError(500, 'Failed to initiate upload in S3', 'S3_ERROR');
+      throw new AppError(500, 'Failed to initiate upload in S3', ERROR_CODES.S3_ERROR);
     }
 
     // 4. Save session in DB
@@ -120,11 +126,11 @@ export class UploadService {
   ): Promise<string> {
     const upload = await this.uploadRepository.findById(uploadId);
     if (!upload || upload.userId !== userId) {
-      throw new AppError(404, 'Upload session not found', 'UPLOAD_NOT_FOUND');
+      throw new AppError(404, 'Upload session not found', ERROR_CODES.UPLOAD_NOT_FOUND);
     }
 
     if (upload.status !== 'pending' && upload.status !== 'uploading') {
-      throw new AppError(400, `Cannot upload parts to a session with status: ${upload.status}`, 'UPLOAD_INVALID_STATUS');
+      throw new AppError(400, `Cannot upload parts to a session with status: ${upload.status}`, ERROR_CODES.UPLOAD_INVALID_STATUS);
     }
 
     if (upload.status === 'pending') {
@@ -139,7 +145,7 @@ export class UploadService {
     });
 
     return getSignedUrl(s3Client, command, {
-      expiresIn: 3600, // 1 hour link validity
+      expiresIn: S3_PART_PRESIGNED_URL_EXPIRES_SECONDS,
     });
   }
 
@@ -157,11 +163,11 @@ export class UploadService {
   ): Promise<File> {
     const upload = await this.uploadRepository.findById(uploadId);
     if (!upload || upload.userId !== userId) {
-      throw new AppError(404, 'Upload session not found', 'UPLOAD_NOT_FOUND');
+      throw new AppError(404, 'Upload session not found', ERROR_CODES.UPLOAD_NOT_FOUND);
     }
 
     if (upload.status !== 'uploading' && upload.status !== 'pending') {
-      throw new AppError(400, `Session status must be uploading/pending to complete, current: ${upload.status}`, 'UPLOAD_INVALID_STATUS');
+      throw new AppError(400, `Session status must be uploading/pending to complete, current: ${upload.status}`, ERROR_CODES.UPLOAD_INVALID_STATUS);
     }
 
     // Sort parts to satisfy S3 SDK constraints
@@ -187,7 +193,7 @@ export class UploadService {
     } catch (err) {
       this.logger.error({ err, uploadId }, 'S3 CompleteMultipartUpload failed');
       await this.uploadRepository.updateStatus(uploadId, 'failed');
-      throw new AppError(500, 'S3 completed multipart request failed', 'S3_ERROR');
+      throw new AppError(500, 'S3 completed multipart request failed', ERROR_CODES.S3_ERROR);
     }
 
     // 3. Complete session and register the file atomically in transaction
@@ -209,7 +215,7 @@ export class UploadService {
     this.logger.info({ fileId: file.id, uploadId }, 'Multipart upload successfully completed');
 
     // 4. Trigger async post-processing pipeline
-    eventBus.emit('file.uploaded', file);
+    eventBus.emit(DOMAIN_EVENTS.FILE_UPLOADED, file);
 
     return file;
   }
@@ -220,11 +226,11 @@ export class UploadService {
   async abortUpload(userId: string, uploadId: string): Promise<void> {
     const upload = await this.uploadRepository.findById(uploadId);
     if (!upload || upload.userId !== userId) {
-      throw new AppError(404, 'Upload session not found', 'UPLOAD_NOT_FOUND');
+      throw new AppError(404, 'Upload session not found', ERROR_CODES.UPLOAD_NOT_FOUND);
     }
 
     if (upload.status !== 'pending' && upload.status !== 'uploading') {
-      throw new AppError(400, `Cannot abort upload session with status: ${upload.status}`, 'UPLOAD_INVALID_STATUS');
+      throw new AppError(400, `Cannot abort upload session with status: ${upload.status}`, ERROR_CODES.UPLOAD_INVALID_STATUS);
     }
 
     this.logger.info({ uploadId, userId }, 'Aborting multipart upload session');

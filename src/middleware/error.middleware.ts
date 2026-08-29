@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/AppError';
 import { logger } from '../utils/logger';
+import { ERROR_CODES } from '../constants';
 
 export function errorHandler(
   err: Error,
@@ -25,7 +26,7 @@ export function errorHandler(
   logger.error({ err }, 'Unhandled error');
   res.status(500).json({
     success: false,
-    code:    'INTERNAL_SERVER_ERROR',
+    code:    ERROR_CODES.INTERNAL_SERVER_ERROR,
     message: 'An unexpected error occurred',
   });
 }

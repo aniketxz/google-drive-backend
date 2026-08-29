@@ -12,6 +12,7 @@ import type { FolderRepository } from '../folders/folders.repository';
 import type { File } from '../../db/schema/files';
 import { AppError } from '../../utils/AppError';
 import { eventBus } from '../../events';
+import { ERROR_CODES, DOMAIN_EVENTS } from '../../constants';
 
 interface FileServiceDeps {
   fileRepository:   FileRepository;
@@ -76,7 +77,7 @@ export class FileService {
   async getDownloadUrl(fileId: string, ownerId: string): Promise<string> {
     const file = await this.fileRepository.findById(fileId);
     if (!file || file.ownerId !== ownerId || file.deletedAt) {
-      throw new AppError(404, 'File not found', 'FILE_NOT_FOUND');
+      throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
     }
 
     const command = new GetObjectCommand({
@@ -102,7 +103,7 @@ export class FileService {
   async getThumbnailUrl(fileId: string, ownerId: string): Promise<string | null> {
     const file = await this.fileRepository.findById(fileId);
     if (!file || file.ownerId !== ownerId || file.deletedAt) {
-      throw new AppError(404, 'File not found', 'FILE_NOT_FOUND');
+      throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
     }
 
     if (!file.thumbnailS3Key || file.thumbnailStatus !== 'done') {
@@ -126,7 +127,7 @@ export class FileService {
 
   async renameFile(fileId: string, ownerId: string, name: string): Promise<File> {
     const file = await this.fileRepository.rename(fileId, ownerId, name);
-    if (!file) throw new AppError(404, 'File not found', 'FILE_NOT_FOUND');
+    if (!file) throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
 
     this.logger.info({ fileId, name }, 'File renamed');
     return file;
@@ -136,7 +137,7 @@ export class FileService {
 
   async starFile(fileId: string, ownerId: string, isStarred: boolean): Promise<File> {
     const file = await this.fileRepository.star(fileId, ownerId, isStarred);
-    if (!file) throw new AppError(404, 'File not found', 'FILE_NOT_FOUND');
+    if (!file) throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
 
     return file;
   }
@@ -151,12 +152,12 @@ export class FileService {
     if (folderId) {
       const folderExists = await this.folderRepository.existsAndOwned(folderId, ownerId);
       if (!folderExists) {
-        throw new AppError(404, 'Destination folder not found', 'FOLDER_NOT_FOUND');
+        throw new AppError(404, 'Destination folder not found', ERROR_CODES.FOLDER_NOT_FOUND);
       }
     }
 
     const file = await this.fileRepository.move(fileId, ownerId, folderId);
-    if (!file) throw new AppError(404, 'File not found', 'FILE_NOT_FOUND');
+    if (!file) throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
 
     this.logger.info({ fileId, folderId }, 'File moved');
     return file;
@@ -169,7 +170,7 @@ export class FileService {
    */
   async softDeleteFile(fileId: string, ownerId: string): Promise<void> {
     const file = await this.fileRepository.softDelete(fileId, ownerId);
-    if (!file) throw new AppError(404, 'File not found', 'FILE_NOT_FOUND');
+    if (!file) throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
 
     // Decrement usedStorage atomically
     await this.fileRepository.adjustUserStorage(ownerId, -file.size);
@@ -184,7 +185,7 @@ export class FileService {
    */
   async restoreFile(fileId: string, ownerId: string): Promise<File> {
     const file = await this.fileRepository.restore(fileId, ownerId);
-    if (!file) throw new AppError(404, 'File not found in trash', 'FILE_NOT_FOUND');
+    if (!file) throw new AppError(404, 'File not found in trash', ERROR_CODES.FILE_NOT_FOUND);
 
     // Re-add file size back to usedStorage
     await this.fileRepository.adjustUserStorage(ownerId, file.size);
@@ -202,7 +203,7 @@ export class FileService {
   async hardDeleteFile(fileId: string, ownerId: string): Promise<void> {
     const file = await this.fileRepository.findById(fileId);
     if (!file || file.ownerId !== ownerId) {
-      throw new AppError(404, 'File not found', 'FILE_NOT_FOUND');
+      throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
     }
 
     // Only decrement quota if the file is still active (not already trashed)
@@ -210,7 +211,7 @@ export class FileService {
 
     // Remove DB record first
     const deleted = await this.fileRepository.hardDelete(fileId, ownerId);
-    if (!deleted) throw new AppError(404, 'File not found', 'FILE_NOT_FOUND');
+    if (!deleted) throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
 
     if (isActive) {
       await this.fileRepository.adjustUserStorage(ownerId, -file.size);
@@ -228,7 +229,7 @@ export class FileService {
     }
 
     // Emit event for any additional cleanup (e.g. thumbnail deletion in Phase 6)
-    eventBus.emit('file.deleted', file.id, file.s3Key);
+    eventBus.emit(DOMAIN_EVENTS.FILE_DELETED, file.id, file.s3Key);
 
     this.logger.info({ fileId, ownerId }, 'File permanently deleted');
   }

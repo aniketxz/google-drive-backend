@@ -1,11 +1,12 @@
 import { EventEmitter } from 'events';
 import type { File } from '../db/schema/files';
+import { DOMAIN_EVENTS, EVENT_BUS_MAX_LISTENERS } from '../constants';
 
 // ── Typed event map ───────────────────────────────────────────────────────────
 interface Events {
-  'file.uploaded': [file: File];
-  'file.deleted': [fileId: string, s3Key: string];
-  'share.created': [shareId: string];
+  [DOMAIN_EVENTS.FILE_UPLOADED]: [file: File];
+  [DOMAIN_EVENTS.FILE_DELETED]: [fileId: string, s3Key: string];
+  [DOMAIN_EVENTS.SHARE_CREATED]: [shareId: string];
 }
 
 // ── Typed EventEmitter ────────────────────────────────────────────────────────
@@ -29,4 +30,5 @@ class TypedEventBus extends EventEmitter {
 
 export const eventBus = new TypedEventBus();
 // Prevent memory leak warnings for high listener counts in large apps
-eventBus.setMaxListeners(50);
+eventBus.setMaxListeners(EVENT_BUS_MAX_LISTENERS);
+

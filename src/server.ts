@@ -3,6 +3,7 @@ import { logger } from './utils/logger';
 import { connectDB } from './db';
 import { connectRedis, redis } from './cache/redis';
 import { createApp } from './app';
+import { SHUTDOWN_TIMEOUT_MS } from './constants';
 
 async function start() {
   await connectDB();
@@ -29,7 +30,7 @@ async function start() {
     setTimeout(() => {
       logger.error('Forced shutdown after timeout');
       process.exit(1);
-    }, 10_000);
+    }, SHUTDOWN_TIMEOUT_MS);
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
