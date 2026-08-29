@@ -1,11 +1,9 @@
 import { eq, and, sql } from 'drizzle-orm';
 import type { DB } from '../../db';
 import { uploads } from '../../db/schema/uploads';
-import { uploadParts } from '../../db/schema/upload_parts';
 import { users } from '../../db/schema/users';
 import { files } from '../../db/schema/files';
 import type { Upload, NewUpload } from '../../db/schema/uploads';
-import type { UploadPart, NewUploadPart } from '../../db/schema/upload_parts';
 import type { File, NewFile } from '../../db/schema/files';
 import type { User } from '../../db/schema/users';
 
@@ -36,11 +34,6 @@ export class UploadRepository {
       .where(eq(uploads.id, id))
       .returning();
     return row;
-  }
-
-  /** Inserts etags and numbers for completed upload parts. */
-  async insertParts(parts: NewUploadPart[]): Promise<UploadPart[]> {
-    return this.db.insert(uploadParts).values(parts).returning();
   }
 
   /** Finds a user by ID to inspect quota and storage metrics. */
@@ -81,10 +74,9 @@ export class UploadRepository {
         })
         .where(eq(users.id, fileData.ownerId));
 
-      // 3. Mark upload session completed
+      // 3. Delete the temporary upload session
       await tx
-        .update(uploads)
-        .set({ status: 'completed' })
+        .delete(uploads)
         .where(eq(uploads.id, uploadId));
 
       return file;

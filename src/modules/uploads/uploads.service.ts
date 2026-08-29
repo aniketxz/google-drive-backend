@@ -190,14 +190,6 @@ export class UploadService {
       throw new AppError(500, 'S3 completed multipart request failed', 'S3_ERROR');
     }
 
-    // 2. Index parts in DB
-    const dbParts = sortedParts.map((p) => ({
-      uploadId,
-      partNumber: p.partNumber,
-      etag:       p.etag,
-    }));
-    await this.uploadRepository.insertParts(dbParts);
-
     // 3. Complete session and register the file atomically in transaction
     const file = await this.uploadRepository.completeUploadTx(
       uploadId,

@@ -3,7 +3,6 @@ export * from './users';
 export * from './folders';
 export * from './files';
 export * from './uploads';
-export * from './upload_parts';
 export * from './shares';
 export * from './public_links';
 

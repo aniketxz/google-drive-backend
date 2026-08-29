@@ -8,6 +8,13 @@
       "when": 1787827304497,
       "tag": "0000_abandoned_rogue",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788001253279,
+      "tag": "0001_glossy_falcon",
+      "breakpoints": true
     }
   ]
 }

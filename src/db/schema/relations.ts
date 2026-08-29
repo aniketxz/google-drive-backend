@@ -3,7 +3,6 @@ import { users } from './users';
 import { folders } from './folders';
 import { files } from './files';
 import { uploads } from './uploads';
-import { uploadParts } from './upload_parts';
 import { shares } from './shares';
 import { publicLinks } from './public_links';
 
@@ -36,15 +35,9 @@ export const filesRelations = relations(files, ({ one }) => ({
 }));
 
 // ── Uploads ────────────────────────────────────────────────────────────────
-export const uploadsRelations = relations(uploads, ({ one, many }) => ({
+export const uploadsRelations = relations(uploads, ({ one }) => ({
   user:   one(users,   { fields: [uploads.userId],   references: [users.id] }),
   folder: one(folders, { fields: [uploads.folderId], references: [folders.id] }),
-  parts:  many(uploadParts),
-}));
-
-// ── Upload Parts ───────────────────────────────────────────────────────────
-export const uploadPartsRelations = relations(uploadParts, ({ one }) => ({
-  upload: one(uploads, { fields: [uploadParts.uploadId], references: [uploads.id] }),
 }));
 
 // ── Shares ─────────────────────────────────────────────────────────────────
