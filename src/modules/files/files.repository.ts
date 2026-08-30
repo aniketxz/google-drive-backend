@@ -106,7 +106,7 @@ export class FileRepository {
   async move(id: string, ownerId: string, folderId: string | null): Promise<File | undefined> {
     const [row] = await this.db
       .update(files)
-      .set({ folderId: folderId ?? undefined, updatedAt: new Date() })
+      .set({ folderId, updatedAt: new Date() })
       .where(and(eq(files.id, id), eq(files.ownerId, ownerId), isNull(files.deletedAt)))
       .returning();
     return row;
