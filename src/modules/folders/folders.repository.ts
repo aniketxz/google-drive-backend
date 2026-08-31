@@ -50,6 +50,15 @@ export class FolderRepository {
       .orderBy(folders.name);
   }
 
+  async updateFolder(id: string, data: Partial<Folder>): Promise<Folder | undefined> {
+    const [row] = await this.db
+      .update(folders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(folders.id, id), isNull(folders.deletedAt)))
+      .returning();
+    return row;
+  }
+
   async rename(id: string, ownerId: string, name: string): Promise<Folder | undefined> {
     const [row] = await this.db
       .update(folders)

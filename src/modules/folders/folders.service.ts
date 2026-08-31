@@ -1,5 +1,6 @@
 import type { Logger } from 'pino';
 import type { FolderRepository } from './folders.repository';
+import type { ShareRepository } from '../shares/shares.repository';
 import type { Folder } from '../../db/schema/folders';
 import { AppError } from '../../utils/AppError';
 import { eventBus } from '../../events';
@@ -7,16 +8,52 @@ import { ERROR_CODES, DOMAIN_EVENTS } from '../../constants';
 
 interface FolderServiceDeps {
   folderRepository: FolderRepository;
+  shareRepository?: ShareRepository;
   logger:           Logger;
 }
 
 export class FolderService {
   private readonly folderRepository: FolderRepository;
+  private readonly shareRepository?: ShareRepository;
   private readonly logger:           Logger;
 
-  constructor({ folderRepository, logger }: FolderServiceDeps) {
+  constructor({ folderRepository, shareRepository, logger }: FolderServiceDeps) {
     this.folderRepository = folderRepository;
+    this.shareRepository  = shareRepository;
     this.logger           = logger;
+  }
+
+  /**
+   * Helper to verify access permissions for a folder (owner or shared recipient).
+   */
+  private async assertFolderAccess(
+    folderId: string,
+    userId: string,
+    requiredPermission: 'view' | 'edit' = 'view',
+  ): Promise<{ folder: Folder; isOwner: boolean }> {
+    const folder = await this.folderRepository.findById(folderId);
+    if (!folder || folder.deletedAt) {
+      throw new AppError(404, 'Folder not found', ERROR_CODES.FOLDER_NOT_FOUND);
+    }
+
+    if (folder.ownerId === userId) {
+      return { folder, isOwner: true };
+    }
+
+    if (!this.shareRepository) {
+      throw new AppError(404, 'Folder not found', ERROR_CODES.FOLDER_NOT_FOUND);
+    }
+
+    const share = await this.shareRepository.findActiveShare('folder', folder.id, userId);
+    if (!share) {
+      throw new AppError(404, 'Folder not found', ERROR_CODES.FOLDER_NOT_FOUND);
+    }
+
+    if (requiredPermission === 'edit' && share.permission !== 'edit') {
+      throw new AppError(403, 'You do not have permission to edit this folder', ERROR_CODES.FORBIDDEN);
+    }
+
+    return { folder, isOwner: false };
   }
 
   // ── Create ─────────────────────────────────────────────────────────────────
@@ -56,50 +93,39 @@ export class FolderService {
    * (Files inside the folder are returned by the Files module.)
    */
   async getFolderContents(
-    id:      string,
-    ownerId: string,
+    id:     string,
+    userId: string,
   ): Promise<{ folder: Folder; children: Folder[] }> {
-    const folder = await this.folderRepository.findById(id);
-    if (!folder || folder.ownerId !== ownerId) {
-      throw new AppError(404, 'Folder not found', ERROR_CODES.FOLDER_NOT_FOUND);
-    }
-
-    const children = await this.folderRepository.listByParent(ownerId, id);
+    const { folder } = await this.assertFolderAccess(id, userId, 'view');
+    const children = await this.folderRepository.listByParent(folder.ownerId, id);
     return { folder, children };
   }
 
   /**
    * Full recursive subtree as a flat list, using PostgreSQL CTE.
    */
-  async getTree(id: string, ownerId: string): Promise<Folder[]> {
-    const folder = await this.folderRepository.findById(id);
-    if (!folder || folder.ownerId !== ownerId) {
-      throw new AppError(404, 'Folder not found', ERROR_CODES.FOLDER_NOT_FOUND);
-    }
-
-    return this.folderRepository.getSubtree(id, ownerId);
+  async getTree(id: string, userId: string): Promise<Folder[]> {
+    const { folder } = await this.assertFolderAccess(id, userId, 'view');
+    return this.folderRepository.getSubtree(id, folder.ownerId);
   }
 
   /**
    * Ancestor chain from root → parent of the given folder (breadcrumb).
    */
-  async getBreadcrumb(id: string, ownerId: string): Promise<Folder[]> {
-    const folder = await this.folderRepository.findById(id);
-    if (!folder || folder.ownerId !== ownerId) {
-      throw new AppError(404, 'Folder not found', ERROR_CODES.FOLDER_NOT_FOUND);
-    }
-
-    return this.folderRepository.getBreadcrumb(id, ownerId);
+  async getBreadcrumb(id: string, userId: string): Promise<Folder[]> {
+    const { folder } = await this.assertFolderAccess(id, userId, 'view');
+    return this.folderRepository.getBreadcrumb(id, folder.ownerId);
   }
 
   // ── Update ─────────────────────────────────────────────────────────────────
 
-  async renameFolder(id: string, ownerId: string, name: string): Promise<Folder> {
-    const folder = await this.folderRepository.rename(id, ownerId, name);
-    if (!folder) throw new AppError(404, 'Folder not found', ERROR_CODES.FOLDER_NOT_FOUND);
+  async renameFolder(id: string, userId: string, name: string): Promise<Folder> {
+    const { folder } = await this.assertFolderAccess(id, userId, 'edit');
+    const updated = await this.folderRepository.updateFolder(folder.id, { name });
+    if (!updated) throw new AppError(404, 'Folder not found', ERROR_CODES.FOLDER_NOT_FOUND);
 
-    this.logger.info({ folderId: id, name }, 'Folder renamed');
-    return folder;
+    this.logger.info({ folderId: id, name, userId }, 'Folder renamed');
+    return updated;
   }
 
   async starFolder(id: string, ownerId: string, isStarred: boolean): Promise<Folder> {

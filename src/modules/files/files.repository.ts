@@ -85,6 +85,15 @@ export class FileRepository {
 
   // ── Update ─────────────────────────────────────────────────────────────────
 
+  async updateFile(id: string, data: Partial<File>): Promise<File | undefined> {
+    const [row] = await this.db
+      .update(files)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(files.id, id), isNull(files.deletedAt)))
+      .returning();
+    return row;
+  }
+
   async rename(id: string, ownerId: string, originalName: string): Promise<File | undefined> {
     const [row] = await this.db
       .update(files)

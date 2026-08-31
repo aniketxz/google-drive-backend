@@ -3,6 +3,7 @@ import { logger } from './utils/logger';
 import { connectDB } from './db';
 import { connectRedis, redis } from './cache/redis';
 import { createApp } from './app';
+import { startCleanupJob } from './jobs/cleanup.job';
 import { SHUTDOWN_TIMEOUT_MS } from './constants';
 
 async function start() {
@@ -10,6 +11,10 @@ async function start() {
   await connectRedis();
 
   const app = createApp();
+
+  // Start background jobs
+  const cleanupTask = startCleanupJob();
+
   const server = app.listen(config.PORT, () => {
     logger.info(`Server running on port ${config.PORT} [${config.NODE_ENV}]`);
   });
@@ -18,6 +23,7 @@ async function start() {
     logger.info(`${signal} received — shutting down gracefully`);
     server.close(async () => {
       try {
+        cleanupTask.stop();
         await redis.quit();
         logger.info('Connections closed. Goodbye 👋');
         process.exit(0);
