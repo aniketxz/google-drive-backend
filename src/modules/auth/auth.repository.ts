@@ -34,6 +34,18 @@ export class AuthRepository {
   }
 
   /**
+   * Find a user by their email address.
+   */
+  async findByEmail(email: string): Promise<User | undefined> {
+    const rows = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+    return rows[0];
+  }
+
+  /**
    * Insert or update a user on conflict of `google_id`.
    * Always updates `name` and `avatar` to reflect the latest data from Google.
    */

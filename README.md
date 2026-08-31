@@ -29,6 +29,12 @@ Live Link: https://google-drive.aniketxz.dev
 ### 3. File Storage:
 - Using Amazon S3 (presigned URLs)
 
+### 4. Sharing & Public Links:
+- User-to-user sharing by email with permission levels (`view` / `edit`) and expiration support
+- Dedicated "Shared with Me" and "Shared by Me" views
+- Token-based unauthenticated public links with expiration support
+- Automatic background cleanup of expired shares and links
+
 ---
 
 ## Quickstart
@@ -149,7 +155,7 @@ docker compose exec db pg_dump -U postgres gdrive_db > backup.sql
 ---
 
 ## Documentation & Roadmap
-
-- **API Documentation**: See [`API-DOCUMENTATION.md`](./API-DOCUMENTATION.md) for full endpoint reference.
-- **Future Roadmap**: See [`backend-plan.md`](./backend-plan.md) for Phase 6 (RabbitMQ Worker for thumbnail generation) and Phase 7 (Sharing & Links) details.
-
+ 
+ - **API Documentation**: See [`API-DOCUMENTATION.md`](./API-DOCUMENTATION.md) for full endpoint reference.
+ - **Frontend Sharing Guide**: See [`FRONTEND-SHARING-GUIDE.md`](./FRONTEND-SHARING-GUIDE.md) for frontend integration instructions for Shares & Public Links.
+ - **Future Roadmap**: See [`backend-plan.md`](./backend-plan.md) for Phase 6 (RabbitMQ Worker for thumbnail generation).

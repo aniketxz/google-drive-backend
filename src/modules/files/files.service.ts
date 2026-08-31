@@ -9,6 +9,7 @@ import type { Config } from '../../config';
 import { s3Client } from '../../utils/s3';
 import type { FileRepository, FileListFilters } from './files.repository';
 import type { FolderRepository } from '../folders/folders.repository';
+import type { ShareRepository } from '../shares/shares.repository';
 import type { File } from '../../db/schema/files';
 import { AppError } from '../../utils/AppError';
 import { eventBus } from '../../events';
@@ -17,6 +18,7 @@ import { ERROR_CODES, DOMAIN_EVENTS } from '../../constants';
 interface FileServiceDeps {
   fileRepository:   FileRepository;
   folderRepository: FolderRepository;
+  shareRepository?: ShareRepository;
   config:           Config;
   logger:           Logger;
 }
@@ -24,14 +26,62 @@ interface FileServiceDeps {
 export class FileService {
   private readonly fileRepository:   FileRepository;
   private readonly folderRepository: FolderRepository;
+  private readonly shareRepository?: ShareRepository;
   private readonly config:           Config;
   private readonly logger:           Logger;
 
-  constructor({ fileRepository, folderRepository, config, logger }: FileServiceDeps) {
+  constructor({
+    fileRepository,
+    folderRepository,
+    shareRepository,
+    config,
+    logger,
+  }: FileServiceDeps) {
     this.fileRepository   = fileRepository;
     this.folderRepository = folderRepository;
+    this.shareRepository  = shareRepository;
     this.config           = config;
     this.logger           = logger;
+  }
+
+  /**
+   * Helper to verify access permissions for a file (owner or shared recipient).
+   */
+  private async assertFileAccess(
+    fileId: string,
+    userId: string,
+    requiredPermission: 'view' | 'edit' = 'view',
+  ): Promise<{ file: File; isOwner: boolean }> {
+    const file = await this.fileRepository.findById(fileId);
+    if (!file || file.deletedAt) {
+      throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
+    }
+
+    if (file.ownerId === userId) {
+      return { file, isOwner: true };
+    }
+
+    if (!this.shareRepository) {
+      throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
+    }
+
+    // Check direct file share
+    let activeShare = await this.shareRepository.findActiveShare('file', file.id, userId);
+
+    // If no direct file share, check parent folder share
+    if (!activeShare && file.folderId) {
+      activeShare = await this.shareRepository.findActiveShare('folder', file.folderId, userId);
+    }
+
+    if (!activeShare) {
+      throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
+    }
+
+    if (requiredPermission === 'edit' && activeShare.permission !== 'edit') {
+      throw new AppError(403, 'You do not have permission to edit this file', ERROR_CODES.FORBIDDEN);
+    }
+
+    return { file, isOwner: false };
   }
 
   // ── List ───────────────────────────────────────────────────────────────────
@@ -72,13 +122,10 @@ export class FileService {
 
   /**
    * Generates a pre-signed S3 URL for downloading the file.
-   * TTL = config.PRESIGNED_URL_EXPIRES (default 15 min).
+   * Accessible by file owner or users with an active share.
    */
-  async getDownloadUrl(fileId: string, ownerId: string): Promise<string> {
-    const file = await this.fileRepository.findById(fileId);
-    if (!file || file.ownerId !== ownerId || file.deletedAt) {
-      throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
-    }
+  async getDownloadUrl(fileId: string, userId: string): Promise<string> {
+    const { file } = await this.assertFileAccess(fileId, userId, 'view');
 
     const command = new GetObjectCommand({
       Bucket:                     file.s3Bucket,
@@ -90,7 +137,7 @@ export class FileService {
       expiresIn: this.config.PRESIGNED_URL_EXPIRES,
     });
 
-    this.logger.debug({ fileId, ownerId }, 'Download presigned URL generated');
+    this.logger.debug({ fileId, userId }, 'Download presigned URL generated');
     return url;
   }
 
@@ -100,11 +147,8 @@ export class FileService {
    * Generates a pre-signed S3 URL for viewing the thumbnail.
    * Returns null if the thumbnail has not been generated yet.
    */
-  async getThumbnailUrl(fileId: string, ownerId: string): Promise<string | null> {
-    const file = await this.fileRepository.findById(fileId);
-    if (!file || file.ownerId !== ownerId || file.deletedAt) {
-      throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
-    }
+  async getThumbnailUrl(fileId: string, userId: string): Promise<string | null> {
+    const { file } = await this.assertFileAccess(fileId, userId, 'view');
 
     if (!file.thumbnailS3Key || file.thumbnailStatus !== 'done') {
       return null;
@@ -125,12 +169,13 @@ export class FileService {
 
   // ── Rename ─────────────────────────────────────────────────────────────────
 
-  async renameFile(fileId: string, ownerId: string, name: string): Promise<File> {
-    const file = await this.fileRepository.rename(fileId, ownerId, name);
-    if (!file) throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
+  async renameFile(fileId: string, userId: string, name: string): Promise<File> {
+    const { file } = await this.assertFileAccess(fileId, userId, 'edit');
+    const updated = await this.fileRepository.updateFile(file.id, { originalName: name });
+    if (!updated) throw new AppError(404, 'File not found', ERROR_CODES.FILE_NOT_FOUND);
 
-    this.logger.info({ fileId, name }, 'File renamed');
-    return file;
+    this.logger.info({ fileId, name, userId }, 'File renamed');
+    return updated;
   }
 
   // ── Star ───────────────────────────────────────────────────────────────────

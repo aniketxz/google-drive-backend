@@ -32,6 +32,16 @@ import { FileService } from './modules/files/files.service';
 import { FileController } from './modules/files/files.controller';
 import { createFileRoutes } from './modules/files/files.routes';
 
+import { ShareRepository } from './modules/shares/shares.repository';
+import { ShareService } from './modules/shares/shares.service';
+import { ShareController } from './modules/shares/shares.controller';
+import { createShareRoutes } from './modules/shares/shares.routes';
+
+import { PublicLinkRepository } from './modules/public-links/public-links.repository';
+import { PublicLinkService } from './modules/public-links/public-links.service';
+import { PublicLinkController } from './modules/public-links/public-links.controller';
+import { createPublicLinkRoutes } from './modules/public-links/public-links.routes';
+
 export function createApp() {
   const app = express();
 
@@ -53,9 +63,14 @@ export function createApp() {
   const authService = new AuthService({ authRepository: authRepo, sessionStore, config, logger });
   authService.registerPassportStrategy();
   const authController = new AuthController({ authService, config, logger });
+  const shareRepo = new ShareRepository(db);
 
   const folderRepo = new FolderRepository(db);
-  const folderService = new FolderService({ folderRepository: folderRepo, logger });
+  const folderService = new FolderService({
+    folderRepository: folderRepo,
+    shareRepository: shareRepo,
+    logger,
+  });
   const folderController = new FolderController({ folderService, logger });
 
   const uploadRepo = new UploadRepository(db);
@@ -63,8 +78,32 @@ export function createApp() {
   const uploadController = new UploadController({ uploadService, logger });
 
   const fileRepo = new FileRepository(db);
-  const fileService = new FileService({ fileRepository: fileRepo, folderRepository: folderRepo, config, logger });
+  const fileService = new FileService({
+    fileRepository: fileRepo,
+    folderRepository: folderRepo,
+    shareRepository: shareRepo,
+    config,
+    logger,
+  });
   const fileController = new FileController({ fileService, logger });
+
+  const shareService = new ShareService({
+    shareRepository: shareRepo,
+    fileRepository: fileRepo,
+    folderRepository: folderRepo,
+    logger,
+  });
+  const shareController = new ShareController({ shareService, logger });
+
+  const publicLinkRepo = new PublicLinkRepository(db);
+  const publicLinkService = new PublicLinkService({
+    publicLinkRepository: publicLinkRepo,
+    fileRepository: fileRepo,
+    folderRepository: folderRepo,
+    config,
+    logger,
+  });
+  const publicLinkController = new PublicLinkController({ publicLinkService, logger });
 
   // ── Health Check ──────────────────────────────────────────────────────────
   app.get('/health', async (_req: Request, res: Response) => {
@@ -92,6 +131,8 @@ export function createApp() {
   app.use('/folders', createFolderRoutes(folderController));
   app.use('/uploads', createUploadRoutes(uploadController));
   app.use('/files', createFileRoutes(fileController));
+  app.use('/shares', createShareRoutes(shareController));
+  app.use('/public', createPublicLinkRoutes(publicLinkController));
 
   // ── Global Error Handler ──────────────────────────────────────────────────
   app.use(errorHandler);
